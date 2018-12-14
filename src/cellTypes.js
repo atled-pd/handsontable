@@ -14,6 +14,7 @@ import {HandsontableEditor} from './editors/handsontableEditor';
 import {MobileTextEditor} from './editors/mobileTextEditor';
 import {NumericEditor} from './editors/numericEditor';
 import {PasswordEditor} from './editors/passwordEditor';
+import {InputEditor} from './editors/passwordEditor';
 import {SelectEditor} from './editors/selectEditor';
 import {TextEditor} from './editors/textEditor';
 
