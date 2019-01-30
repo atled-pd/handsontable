@@ -12,7 +12,7 @@ class PasswordEditor extends TextEditor {
     super.createElements();
 
     this.TEXTAREA = document.createElement('input');
-    this.TEXTAREA.setAttribute('type', 'password');
+    this.TEXTAREA.setAttribute('type', 'text');
     this.TEXTAREA.className = 'handsontableInput';
     this.textareaStyle = this.TEXTAREA.style;
     this.textareaStyle.width = 0;

@@ -23,8 +23,8 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * 
- * Version: 4.0.0
- * Release date: 13/06/2018 (built at 12/06/2018 11:47:13)
+ * Version: 4.0.1
+ * Release date: 13/06/2018 (built at 30/01/2019 09:44:11)
  */
 (function webpackUniversalModuleDefinition(root, factory) {
 	if(typeof exports === 'object' && typeof module === 'object')
@@ -28948,9 +28948,9 @@ Handsontable.DefaultSettings = _defaultSettings2.default;
 Handsontable.EventManager = _eventManager2.default;
 Handsontable._getListenersCounter = _eventManager.getListenersCounter; // For MemoryLeak tests
 
-Handsontable.buildDate = '12/06/2018 11:47:13';
+Handsontable.buildDate = '30/01/2019 09:44:11';
 Handsontable.packageName = 'handsontable';
-Handsontable.version = '4.0.0';
+Handsontable.version = '4.0.1';
 
 var baseVersion = '';
 
@@ -31531,7 +31531,7 @@ var PasswordEditor = function (_TextEditor) {
       _get(PasswordEditor.prototype.__proto__ || Object.getPrototypeOf(PasswordEditor.prototype), 'createElements', this).call(this);
 
       this.TEXTAREA = document.createElement('input');
-      this.TEXTAREA.setAttribute('type', 'password');
+      this.TEXTAREA.setAttribute('type', 'text');
       this.TEXTAREA.className = 'handsontableInput';
       this.textareaStyle = this.TEXTAREA.style;
       this.textareaStyle.width = 0;

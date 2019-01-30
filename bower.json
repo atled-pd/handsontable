@@ -34,9 +34,9 @@
     "test"
   ],
   "dependencies": {
-    "moment": "^2.13.0",
-    "numbro": "^2.0.6",
-    "pikaday": "^1.4.0"
+    "moment": "2.20.1",
+    "numbro": "2.0.6",
+    "pikaday": "1.5.1"
   },
   "devDependencies": {
     "chroma-js": "~0.5.6"
