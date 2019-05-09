@@ -19,6 +19,7 @@ import {eventManager as eventManagerObject} from './../eventManager';
 import {getEditor, registerEditor} from './../editors';
 import {KEY_CODES} from './../helpers/unicode';
 import {stopPropagation, stopImmediatePropagation, isImmediatePropagationStopped} from './../helpers/dom/event';
+import {getBrowser} from './../helpers/browser';
 
 var TextEditor = BaseEditor.prototype.extend();
 
@@ -40,12 +41,58 @@ TextEditor.prototype.init = function() {
   });
 };
 
+TextEditor.prototype.prepare = function(row, col, prop, td, originalValue, cellProperties) {
+  const previousState = this.state;
+
+  BaseEditor.prototype.prepare.apply(this, arguments);
+
+  if (this.isImeFullWidthAdjsut()) {
+    if (!cellProperties.readOnly) {
+      this.refreshDimensions(true);
+
+      const {
+        allowInvalid,
+        fragmentSelection,
+        } = cellProperties;
+
+      if (allowInvalid) {
+        this.TEXTAREA.value = ''; // Remove an empty space from texarea (added by copyPaste plugin to make copy/paste functionality work with IME)
+      }
+
+      if (previousState !== Handsontable.EditorState.FINISHED) {
+        this.hideEditableElement();
+      }
+
+      // @TODO: The fragmentSelection functionality is conflicted with IME. For this feature refocus has to
+      // be disabled (to make IME working).
+      const restoreFocus = !fragmentSelection;
+
+      if (restoreFocus) {
+        var _self = this;
+        setTimeout(function() {
+          _self.focus();
+        }, 0);
+      }
+    }
+  }
+};
+
 TextEditor.prototype.getValue = function() {
   return this.TEXTAREA.value;
 };
 
 TextEditor.prototype.setValue = function(newValue) {
   this.TEXTAREA.value = newValue;
+};
+
+TextEditor.prototype.beginEditing = function(newInitialValue, event) {
+  if (this.isImeFullWidthAdjsut()) {
+    if (this.state !== Handsontable.EditorState.VIRGIN) {
+      return;
+    }
+    this.TEXTAREA.value = ''; // Remove an empty space from texarea (added by copyPaste plugin to make copy/paste functionality work with IME).
+  }
+  BaseEditor.prototype.beginEditing.apply(this, arguments);
 };
 
 var onBeforeKeyDown = function onBeforeKeyDown(event) {
@@ -131,10 +178,35 @@ var onBeforeKeyDown = function onBeforeKeyDown(event) {
     case KEY_CODES.END:
       stopImmediatePropagation(event); // backspace, delete, home, end should only work locally when cell is edited (not in table context)
       break;
+    default:
+      break;
   }
 
   if ([KEY_CODES.ARROW_UP, KEY_CODES.ARROW_RIGHT, KEY_CODES.ARROW_DOWN, KEY_CODES.ARROW_LEFT].indexOf(event.keyCode) === -1) {
     that.autoResize.resize(String.fromCharCode(event.keyCode));
+  }
+};
+
+TextEditor.prototype.isImeFullWidthAdjsut = function () {
+  var browser = getBrowser();
+  return ((browser == 'Chrome') || (browser == 'Firefox') || (browser == 'Edge'));
+};
+
+TextEditor.prototype.hideEditableElement = function() {
+  if(this.isImeFullWidthAdjsut()) {
+    this.textareaParentStyle.top = '-9999px';
+    this.textareaParentStyle.left = '-9999px';
+    this.textareaParentStyle.zIndex = '-1';
+  } else {
+    this.textareaParentStyle.display = 'none';
+  }
+};
+
+TextEditor.prototype.showEditableElement = function() {
+  if (this.isImeFullWidthAdjsut()) {
+    this.textareaParentStyle.zIndex = this.textareaParentStyle.zIndex >= 0 ? this.textareaParentStyle.zIndex : '';
+  } else {
+    this.textareaParentStyle.display = 'block';
   }
 };
 
@@ -145,25 +217,35 @@ TextEditor.prototype.open = function() {
 };
 
 TextEditor.prototype.close = function(tdOutside) {
-  this.textareaParentStyle.display = 'none';
-
   this.autoResize.unObserve();
 
   if (document.activeElement === this.TEXTAREA) {
     this.instance.listen(); // don't refocus the table if user focused some cell outside of HT on purpose
   }
+  this.hideEditableElement();
   this.instance.removeHook('beforeKeyDown', onBeforeKeyDown);
 };
 
-TextEditor.prototype.focus = function() {
-  this.TEXTAREA.focus();
-  setCaretPosition(this.TEXTAREA, this.TEXTAREA.value.length);
+TextEditor.prototype.focus = function () {
+  var _self = this;
+  if (this.isImeFullWidthAdjsut()) {
+    // For IME editor textarea element must be focused using ".select" method. Using ".focus" browser automatically scroll into
+    // the focused element which is undesire effect.
+    _self.TEXTAREA.select();
+    setCaretPosition(_self.TEXTAREA, _self.TEXTAREA.value.length);
+  } else {
+    this.TEXTAREA.focus();
+    setCaretPosition(this.TEXTAREA, this.TEXTAREA.value.length);
+  }
 };
 
 TextEditor.prototype.createElements = function() {
   //    this.$body = $(document.body);
 
   this.TEXTAREA = document.createElement('TEXTAREA');
+  if (this.isImeFullWidthAdjsut()) {
+    this.TEXTAREA.tabIndex = -1;
+  }
 
   addClass(this.TEXTAREA, 'handsontableInput');
 
@@ -175,9 +257,13 @@ TextEditor.prototype.createElements = function() {
   addClass(this.TEXTAREA_PARENT, 'handsontableInputHolder');
 
   this.textareaParentStyle = this.TEXTAREA_PARENT.style;
-  this.textareaParentStyle.top = 0;
-  this.textareaParentStyle.left = 0;
-  this.textareaParentStyle.display = 'none';
+  if (this.isImeFullWidthAdjsut()) {
+    this.textareaParentStyle.zIndex = '-1';
+  } else {
+    this.textareaParentStyle.top = 0;
+    this.textareaParentStyle.left = 0;
+    this.textareaParentStyle.display = 'none';
+  }
 
   this.TEXTAREA_PARENT.appendChild(this.TEXTAREA);
 
@@ -304,6 +390,8 @@ TextEditor.prototype.refreshDimensions = function() {
   this.textareaParentStyle.top = editTop + 'px';
   this.textareaParentStyle.left = editLeft + 'px';
 
+  this.showEditableElement();
+
   let firstRowOffset = this.instance.view.wt.wtViewport.rowsRenderCalculator.startPosition;
   let firstColumnOffset = this.instance.view.wt.wtViewport.columnsRenderCalculator.startPosition;
   let horizontalScrollPosition = this.instance.view.wt.wtOverlays.leftOverlay.getScrollPosition();
@@ -333,8 +421,6 @@ TextEditor.prototype.refreshDimensions = function() {
     minWidth: Math.min(width, maxWidth),
     maxWidth: maxWidth // TEXTAREA should never be wider than visible part of the viewport (should not cover the scrollbar)
   }, true);
-
-  this.textareaParentStyle.display = 'block';
 };
 
 TextEditor.prototype.bindEvents = function() {

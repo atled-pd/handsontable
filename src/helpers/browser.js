@@ -30,3 +30,25 @@ export function isMobileBrowser(userAgent) {
 
   return (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent));
 }
+
+export function getBrowser() {
+  var result = 'other';
+  var agent = window.navigator.userAgent.toLowerCase();
+  var version = window.navigator.appVersion.toLowerCase();
+  if(agent.indexOf("msie") > -1){
+    result = 'IE';
+  }else if(agent.indexOf("trident/7") > -1){
+    result = 'IE11';
+  }else if(agent.indexOf("edge") > -1){
+    result = 'Edge';
+  }else if ((agent.indexOf("chrome") > -1) && (agent.indexOf("android") <= -1)) {
+    result = 'Chrome';
+  }else if ((agent.indexOf("chrome") > -1) && (agent.indexOf("android") > -1)) {
+    result = 'ChromeForAndroid';
+  }else if (agent.indexOf("safari") > -1){
+    result = 'Safari';
+  }else if (agent.indexOf("firefox") > -1){
+    result = 'Firefox';
+  }
+  return result;
+}

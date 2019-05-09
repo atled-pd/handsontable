@@ -4343,9 +4343,9 @@ var domHelpers = ($__helpers_47_dom_47_element__ = _dereq_("helpers/dom/element"
 var domEventHelpers = ($__helpers_47_dom_47_event__ = _dereq_("helpers/dom/event"), $__helpers_47_dom_47_event__ && $__helpers_47_dom_47_event__.__esModule && $__helpers_47_dom_47_event__ || {default: $__helpers_47_dom_47_event__});
 var HELPERS = [arrayHelpers, browserHelpers, dataHelpers, dateHelpers, featureHelpers, functionHelpers, mixedHelpers, numberHelpers, objectHelpers, settingHelpers, stringHelpers, unicodeHelpers];
 var DOM = [domHelpers, domEventHelpers];
-Handsontable.buildDate = 'Wed Dec 19 2018 16:42:25 GMT+0900 (JST)';
+Handsontable.buildDate = 'Thu May 09 2019 11:16:49 GMT+0900 (東京 (標準時))';
 Handsontable.packageName = 'handsontable';
-Handsontable.version = '0.28.4';
+Handsontable.version = '0.28.4.4';
 var baseVersion = '@@baseVersion';
 if (!/^@@/.test(baseVersion)) {
   Handsontable.baseVersion = baseVersion;
@@ -9027,7 +9027,8 @@ var $___46__46__47_browser__,
     $___46__46__47_eventManager__,
     $___46__46__47_editors__,
     $___46__46__47_helpers_47_unicode__,
-    $___46__46__47_helpers_47_dom_47_event__;
+    $___46__46__47_helpers_47_dom_47_event__,
+    $___46__46__47_helpers_47_browser__;
 var Handsontable = ($___46__46__47_browser__ = _dereq_("browser"), $___46__46__47_browser__ && $___46__46__47_browser__.__esModule && $___46__46__47_browser__ || {default: $___46__46__47_browser__}).default;
 var $__1 = ($___46__46__47_helpers_47_dom_47_element__ = _dereq_("helpers/dom/element"), $___46__46__47_helpers_47_dom_47_element__ && $___46__46__47_helpers_47_dom_47_element__.__esModule && $___46__46__47_helpers_47_dom_47_element__ || {default: $___46__46__47_helpers_47_dom_47_element__}),
     addClass = $__1.addClass,
@@ -9053,6 +9054,7 @@ var $__7 = ($___46__46__47_helpers_47_dom_47_event__ = _dereq_("helpers/dom/even
     stopPropagation = $__7.stopPropagation,
     stopImmediatePropagation = $__7.stopImmediatePropagation,
     isImmediatePropagationStopped = $__7.isImmediatePropagationStopped;
+var getBrowser = ($___46__46__47_helpers_47_browser__ = _dereq_("helpers/browser"), $___46__46__47_helpers_47_browser__ && $___46__46__47_helpers_47_browser__.__esModule && $___46__46__47_helpers_47_browser__ || {default: $___46__46__47_helpers_47_browser__}).getBrowser;
 var TextEditor = BaseEditor.prototype.extend();
 TextEditor.prototype.init = function() {
   var that = this;
@@ -9064,11 +9066,45 @@ TextEditor.prototype.init = function() {
     that.destroy();
   });
 };
+TextEditor.prototype.prepare = function(row, col, prop, td, originalValue, cellProperties) {
+  var previousState = this.state;
+  BaseEditor.prototype.prepare.apply(this, arguments);
+  if (this.isImeFullWidthAdjsut()) {
+    if (!cellProperties.readOnly) {
+      this.refreshDimensions(true);
+      var $__9 = cellProperties,
+          allowInvalid = $__9.allowInvalid,
+          fragmentSelection = $__9.fragmentSelection;
+      if (allowInvalid) {
+        this.TEXTAREA.value = '';
+      }
+      if (previousState !== Handsontable.EditorState.FINISHED) {
+        this.hideEditableElement();
+      }
+      var restoreFocus = !fragmentSelection;
+      if (restoreFocus) {
+        var _self = this;
+        setTimeout(function() {
+          _self.focus();
+        }, 0);
+      }
+    }
+  }
+};
 TextEditor.prototype.getValue = function() {
   return this.TEXTAREA.value;
 };
 TextEditor.prototype.setValue = function(newValue) {
   this.TEXTAREA.value = newValue;
+};
+TextEditor.prototype.beginEditing = function(newInitialValue, event) {
+  if (this.isImeFullWidthAdjsut()) {
+    if (this.state !== Handsontable.EditorState.VIRGIN) {
+      return;
+    }
+    this.TEXTAREA.value = '';
+  }
+  BaseEditor.prototype.beginEditing.apply(this, arguments);
 };
 var onBeforeKeyDown = function onBeforeKeyDown(event) {
   var instance = this,
@@ -9136,9 +9172,31 @@ var onBeforeKeyDown = function onBeforeKeyDown(event) {
     case KEY_CODES.END:
       stopImmediatePropagation(event);
       break;
+    default:
+      break;
   }
   if ([KEY_CODES.ARROW_UP, KEY_CODES.ARROW_RIGHT, KEY_CODES.ARROW_DOWN, KEY_CODES.ARROW_LEFT].indexOf(event.keyCode) === -1) {
     that.autoResize.resize(String.fromCharCode(event.keyCode));
+  }
+};
+TextEditor.prototype.isImeFullWidthAdjsut = function() {
+  var browser = getBrowser();
+  return ((browser == 'Chrome') || (browser == 'Firefox') || (browser == 'Edge'));
+};
+TextEditor.prototype.hideEditableElement = function() {
+  if (this.isImeFullWidthAdjsut()) {
+    this.textareaParentStyle.top = '-9999px';
+    this.textareaParentStyle.left = '-9999px';
+    this.textareaParentStyle.zIndex = '-1';
+  } else {
+    this.textareaParentStyle.display = 'none';
+  }
+};
+TextEditor.prototype.showEditableElement = function() {
+  if (this.isImeFullWidthAdjsut()) {
+    this.textareaParentStyle.zIndex = this.textareaParentStyle.zIndex >= 0 ? this.textareaParentStyle.zIndex : '';
+  } else {
+    this.textareaParentStyle.display = 'block';
   }
 };
 TextEditor.prototype.open = function() {
@@ -9146,19 +9204,28 @@ TextEditor.prototype.open = function() {
   this.instance.addHook('beforeKeyDown', onBeforeKeyDown);
 };
 TextEditor.prototype.close = function(tdOutside) {
-  this.textareaParentStyle.display = 'none';
   this.autoResize.unObserve();
   if (document.activeElement === this.TEXTAREA) {
     this.instance.listen();
   }
+  this.hideEditableElement();
   this.instance.removeHook('beforeKeyDown', onBeforeKeyDown);
 };
 TextEditor.prototype.focus = function() {
-  this.TEXTAREA.focus();
-  setCaretPosition(this.TEXTAREA, this.TEXTAREA.value.length);
+  var _self = this;
+  if (this.isImeFullWidthAdjsut()) {
+    _self.TEXTAREA.select();
+    setCaretPosition(_self.TEXTAREA, _self.TEXTAREA.value.length);
+  } else {
+    this.TEXTAREA.focus();
+    setCaretPosition(this.TEXTAREA, this.TEXTAREA.value.length);
+  }
 };
 TextEditor.prototype.createElements = function() {
   this.TEXTAREA = document.createElement('TEXTAREA');
+  if (this.isImeFullWidthAdjsut()) {
+    this.TEXTAREA.tabIndex = -1;
+  }
   addClass(this.TEXTAREA, 'handsontableInput');
   this.textareaStyle = this.TEXTAREA.style;
   this.textareaStyle.width = 0;
@@ -9166,9 +9233,13 @@ TextEditor.prototype.createElements = function() {
   this.TEXTAREA_PARENT = document.createElement('DIV');
   addClass(this.TEXTAREA_PARENT, 'handsontableInputHolder');
   this.textareaParentStyle = this.TEXTAREA_PARENT.style;
-  this.textareaParentStyle.top = 0;
-  this.textareaParentStyle.left = 0;
-  this.textareaParentStyle.display = 'none';
+  if (this.isImeFullWidthAdjsut()) {
+    this.textareaParentStyle.zIndex = '-1';
+  } else {
+    this.textareaParentStyle.top = 0;
+    this.textareaParentStyle.left = 0;
+    this.textareaParentStyle.display = 'none';
+  }
   this.TEXTAREA_PARENT.appendChild(this.TEXTAREA);
   this.instance.rootElement.appendChild(this.TEXTAREA_PARENT);
   var that = this;
@@ -9274,6 +9345,7 @@ TextEditor.prototype.refreshDimensions = function() {
   }
   this.textareaParentStyle.top = editTop + 'px';
   this.textareaParentStyle.left = editLeft + 'px';
+  this.showEditableElement();
   var firstRowOffset = this.instance.view.wt.wtViewport.rowsRenderCalculator.startPosition;
   var firstColumnOffset = this.instance.view.wt.wtViewport.columnsRenderCalculator.startPosition;
   var horizontalScrollPosition = this.instance.view.wt.wtOverlays.leftOverlay.getScrollPosition();
@@ -9298,7 +9370,6 @@ TextEditor.prototype.refreshDimensions = function() {
     minWidth: Math.min(width, maxWidth),
     maxWidth: maxWidth
   }, true);
-  this.textareaParentStyle.display = 'block';
 };
 TextEditor.prototype.bindEvents = function() {
   var editor = this;
@@ -9333,7 +9404,7 @@ TextEditor.prototype.destroy = function() {
 registerEditor('text', TextEditor);
 
 //# 
-},{"_baseEditor":31,"autoResize":"autoResize","browser":24,"editors":30,"eventManager":42,"helpers/dom/element":47,"helpers/dom/event":48,"helpers/unicode":56}],42:[function(_dereq_,module,exports){
+},{"_baseEditor":31,"autoResize":"autoResize","browser":24,"editors":30,"eventManager":42,"helpers/browser":44,"helpers/dom/element":47,"helpers/dom/event":48,"helpers/unicode":56}],42:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   EventManager: {get: function() {
@@ -9698,6 +9769,9 @@ Object.defineProperties(exports, {
   isMobileBrowser: {get: function() {
       return isMobileBrowser;
     }},
+  getBrowser: {get: function() {
+      return getBrowser;
+    }},
   __esModule: {value: true}
 });
 var _isIE8 = !(document.createTextNode('test').textContent);
@@ -9721,6 +9795,27 @@ function isMobileBrowser(userAgent) {
     userAgent = navigator.userAgent;
   }
   return (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent));
+}
+function getBrowser() {
+  var result = 'other';
+  var agent = window.navigator.userAgent.toLowerCase();
+  var version = window.navigator.appVersion.toLowerCase();
+  if (agent.indexOf("msie") > -1) {
+    result = 'IE';
+  } else if (agent.indexOf("trident/7") > -1) {
+    result = 'IE11';
+  } else if (agent.indexOf("edge") > -1) {
+    result = 'Edge';
+  } else if ((agent.indexOf("chrome") > -1) && (agent.indexOf("android") <= -1)) {
+    result = 'Chrome';
+  } else if ((agent.indexOf("chrome") > -1) && (agent.indexOf("android") > -1)) {
+    result = 'ChromeForAndroid';
+  } else if (agent.indexOf("safari") > -1) {
+    result = 'Safari';
+  } else if (agent.indexOf("firefox") > -1) {
+    result = 'Firefox';
+  }
+  return result;
 }
 
 //# 
@@ -13797,6 +13892,146 @@ registerPlugin('comments', Comments);
 },{"3rdparty/walkontable/src/cell/coords":6,"_base":62,"browser":24,"commentEditor":67,"eventManager":42,"helpers/dom/element":47,"plugins":61}],69:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
+  ContextMenuCopyPaste: {get: function() {
+      return ContextMenuCopyPaste;
+    }},
+  __esModule: {value: true}
+});
+var $___46__46__47__46__46__47_browser__,
+    $___46__46__47__46__46__47_helpers_47_dom_47_element__,
+    $___46__46__47__46__46__47_helpers_47_array__,
+    $___46__46__47__46__46__47_eventManager__,
+    $___46__46__47__46__46__47_plugins__,
+    $___46__46__47__95_base__,
+    $__zeroclipboard__;
+var Handsontable = ($___46__46__47__46__46__47_browser__ = _dereq_("browser"), $___46__46__47__46__46__47_browser__ && $___46__46__47__46__46__47_browser__.__esModule && $___46__46__47__46__46__47_browser__ || {default: $___46__46__47__46__46__47_browser__}).default;
+var removeClass = ($___46__46__47__46__46__47_helpers_47_dom_47_element__ = _dereq_("helpers/dom/element"), $___46__46__47__46__46__47_helpers_47_dom_47_element__ && $___46__46__47__46__46__47_helpers_47_dom_47_element__.__esModule && $___46__46__47__46__46__47_helpers_47_dom_47_element__ || {default: $___46__46__47__46__46__47_helpers_47_dom_47_element__}).removeClass;
+var arrayEach = ($___46__46__47__46__46__47_helpers_47_array__ = _dereq_("helpers/array"), $___46__46__47__46__46__47_helpers_47_array__ && $___46__46__47__46__46__47_helpers_47_array__.__esModule && $___46__46__47__46__46__47_helpers_47_array__ || {default: $___46__46__47__46__46__47_helpers_47_array__}).arrayEach;
+var EventManager = ($___46__46__47__46__46__47_eventManager__ = _dereq_("eventManager"), $___46__46__47__46__46__47_eventManager__ && $___46__46__47__46__46__47_eventManager__.__esModule && $___46__46__47__46__46__47_eventManager__ || {default: $___46__46__47__46__46__47_eventManager__}).EventManager;
+var registerPlugin = ($___46__46__47__46__46__47_plugins__ = _dereq_("plugins"), $___46__46__47__46__46__47_plugins__ && $___46__46__47__46__46__47_plugins__.__esModule && $___46__46__47__46__46__47_plugins__ || {default: $___46__46__47__46__46__47_plugins__}).registerPlugin;
+var BasePlugin = ($___46__46__47__95_base__ = _dereq_("_base"), $___46__46__47__95_base__ && $___46__46__47__95_base__.__esModule && $___46__46__47__95_base__ || {default: $___46__46__47__95_base__}).default;
+var ZeroClipboard = ($__zeroclipboard__ = _dereq_("zeroclipboard"), $__zeroclipboard__ && $__zeroclipboard__.__esModule && $__zeroclipboard__ || {default: $__zeroclipboard__}).default;
+var ContextMenuCopyPaste = function ContextMenuCopyPaste(hotInstance) {
+  $traceurRuntime.superConstructor($ContextMenuCopyPaste).call(this, hotInstance);
+  this.eventManager = new EventManager(this);
+  this.swfPath = null;
+  this.outsideClickDeselectsCache = null;
+};
+var $ContextMenuCopyPaste = ContextMenuCopyPaste;
+($traceurRuntime.createClass)(ContextMenuCopyPaste, {
+  isEnabled: function() {
+    return this.hot.getSettings().contextMenuCopyPaste;
+  },
+  enablePlugin: function() {
+    var $__7 = this;
+    if (this.enabled) {
+      return;
+    }
+    if (typeof this.hot.getSettings().contextMenuCopyPaste === 'object') {
+      this.swfPath = this.hot.getSettings().contextMenuCopyPaste.swfPath;
+    }
+    if (typeof ZeroClipboard === 'undefined') {
+      console.error('To be able to use the Copy/Paste feature from the context menu, you need to manually include ZeroClipboard.js file to your website.');
+    }
+    try {
+      new ActiveXObject('ShockwaveFlash.ShockwaveFlash');
+    } catch (exception) {
+      if (typeof navigator.mimeTypes['application/x-shockwave-flash'] == 'undefined') {
+        console.error('To be able to use the Copy/Paste feature from the context menu, your browser needs to have Flash Plugin installed.');
+      }
+    }
+    if (this.swfPath) {
+      ZeroClipboard.config({swfPath: this.swfPath});
+    }
+    this.hot.addHook('afterContextMenuShow', (function() {
+      return $__7.onAfterContextMenuShow();
+    }));
+    this.hot.addHook('afterContextMenuDefaultOptions', (function(options) {
+      return $__7.onAfterContextMenuDefaultOptions(options);
+    }));
+    this.registerEvents();
+    $traceurRuntime.superGet(this, $ContextMenuCopyPaste.prototype, "enablePlugin").call(this);
+  },
+  disablePlugin: function() {
+    $traceurRuntime.superGet(this, $ContextMenuCopyPaste.prototype, "disablePlugin").call(this);
+  },
+  registerEvents: function() {
+    var $__7 = this;
+    this.eventManager.addEventListener(document, 'mouseenter', (function() {
+      return $__7.removeCurrentClass();
+    }));
+    this.eventManager.addEventListener(document, 'mouseleave', (function() {
+      return $__7.removeZeroClipboardClass();
+    }));
+  },
+  getCopyValue: function() {
+    this.hot.copyPaste.setCopyableText();
+    return this.hot.copyPaste.copyPasteInstance.elTextarea.value;
+  },
+  onAfterContextMenuDefaultOptions: function(defaultOptions) {
+    defaultOptions.items.unshift({
+      key: 'copy',
+      name: 'Copy',
+      disabled: function() {
+        return this.selection.selectedHeader.corner;
+      }
+    }, {
+      key: 'paste',
+      name: 'Paste',
+      callback: function() {
+        this.copyPaste.triggerPaste();
+      },
+      disabled: function() {
+        return this.selection.selectedHeader.corner;
+      }
+    }, Handsontable.plugins.ContextMenu.SEPARATOR);
+  },
+  onAfterContextMenuShow: function() {
+    var $__7 = this;
+    var contextMenu = this.hot.getPlugin('contextMenu');
+    var data = contextMenu.menu.hotMenu.getSourceData();
+    arrayEach(data, (function(item, index) {
+      if (item.key === 'copy') {
+        var zeroClipboardInstance = new ZeroClipboard(contextMenu.menu.hotMenu.getCell(index, 0));
+        zeroClipboardInstance.off();
+        zeroClipboardInstance.on('copy', (function(event) {
+          var clipboard = event.clipboardData;
+          clipboard.setData('text/plain', $__7.getCopyValue());
+          $__7.hot.getSettings().outsideClickDeselects = $__7.outsideClickDeselectsCache;
+        }));
+        return false;
+      }
+    }));
+  },
+  removeCurrentClass: function() {
+    var contextMenu = this.hot.getPlugin('contextMenu');
+    if (contextMenu.menu.isOpened()) {
+      var element = contextMenu.menu.hotMenu.rootElement.querySelector('td.current');
+      if (element) {
+        removeClass(element, 'current');
+      }
+    }
+    this.outsideClickDeselectsCache = this.hot.getSettings().outsideClickDeselects;
+    this.hot.getSettings().outsideClickDeselects = false;
+  },
+  removeZeroClipboardClass: function() {
+    var contextMenu = this.hot.getPlugin('contextMenu');
+    if (contextMenu.menu.isOpened()) {
+      var element = contextMenu.menu.hotMenu.rootElement.querySelector('td.zeroclipboard-is-hover');
+      if (element) {
+        removeClass(element, 'zeroclipboard-is-hover');
+      }
+    }
+    this.hot.getSettings().outsideClickDeselects = this.outsideClickDeselectsCache;
+  }
+}, {}, BasePlugin);
+;
+registerPlugin('contextMenuCopyPaste', ContextMenuCopyPaste);
+
+//# 
+},{"_base":62,"browser":24,"eventManager":42,"helpers/array":43,"helpers/dom/element":47,"plugins":61,"zeroclipboard":"zeroclipboard"}],70:[function(_dereq_,module,exports){
+"use strict";
+Object.defineProperties(exports, {
   CommandExecutor: {get: function() {
       return CommandExecutor;
     }},
@@ -13867,7 +14102,7 @@ function findSubCommand(subCommandName, subCommands) {
 ;
 
 //# 
-},{"helpers/array":43}],70:[function(_dereq_,module,exports){
+},{"helpers/array":43}],71:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   ContextMenu: {get: function() {
@@ -14057,7 +14292,7 @@ Handsontable.hooks.register('afterContextMenuExecute');
 registerPlugin('contextMenu', ContextMenu);
 
 //# 
-},{"_base":62,"browser":24,"commandExecutor":69,"eventManager":42,"helpers/array":43,"helpers/dom/element":47,"helpers/dom/event":48,"itemsFactory":72,"menu":73,"plugins":61,"predefinedItems":74}],71:[function(_dereq_,module,exports){
+},{"_base":62,"browser":24,"commandExecutor":70,"eventManager":42,"helpers/array":43,"helpers/dom/element":47,"helpers/dom/event":48,"itemsFactory":73,"menu":74,"plugins":61,"predefinedItems":75}],72:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   Cursor: {get: function() {
@@ -14139,7 +14374,7 @@ Handsontable.plugins.utils = Handsontable.plugins.utils || {};
 Handsontable.plugins.utils.Cursor = Cursor;
 
 //# 
-},{"browser":24,"helpers/dom/element":47,"helpers/dom/event":48}],72:[function(_dereq_,module,exports){
+},{"browser":24,"helpers/dom/element":47,"helpers/dom/event":48}],73:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   ItemsFactory: {get: function() {
@@ -14244,7 +14479,7 @@ function getItems() {
 ;
 
 //# 
-},{"helpers/array":43,"helpers/object":53,"predefinedItems":74}],73:[function(_dereq_,module,exports){
+},{"helpers/array":43,"helpers/object":53,"predefinedItems":75}],74:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   Menu: {get: function() {
@@ -14750,7 +14985,7 @@ mixin(Menu, localHooks);
 ;
 
 //# 
-},{"browser":24,"cursor":71,"eventManager":42,"helpers/array":43,"helpers/dom/element":47,"helpers/dom/event":48,"helpers/function":50,"helpers/object":53,"helpers/unicode":56,"mixins/localHooks":58,"predefinedItems":74,"utils":87}],74:[function(_dereq_,module,exports){
+},{"browser":24,"cursor":72,"eventManager":42,"helpers/array":43,"helpers/dom/element":47,"helpers/dom/event":48,"helpers/function":50,"helpers/object":53,"helpers/unicode":56,"mixins/localHooks":58,"predefinedItems":75,"utils":88}],75:[function(_dereq_,module,exports){
 "use strict";
 var $__13;
 Object.defineProperties(exports, {
@@ -14951,7 +15186,7 @@ function addItem(key, item) {
 }
 
 //# 
-},{"helpers/object":53,"predefinedItems/alignment":75,"predefinedItems/clearColumn":76,"predefinedItems/columnLeft":77,"predefinedItems/columnRight":78,"predefinedItems/readOnly":79,"predefinedItems/redo":80,"predefinedItems/removeColumn":81,"predefinedItems/removeRow":82,"predefinedItems/rowAbove":83,"predefinedItems/rowBelow":84,"predefinedItems/separator":85,"predefinedItems/undo":86}],75:[function(_dereq_,module,exports){
+},{"helpers/object":53,"predefinedItems/alignment":76,"predefinedItems/clearColumn":77,"predefinedItems/columnLeft":78,"predefinedItems/columnRight":79,"predefinedItems/readOnly":80,"predefinedItems/redo":81,"predefinedItems/removeColumn":82,"predefinedItems/removeRow":83,"predefinedItems/rowAbove":84,"predefinedItems/rowBelow":85,"predefinedItems/separator":86,"predefinedItems/undo":87}],76:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   KEY: {get: function() {
@@ -15200,7 +15435,7 @@ function alignmentItem() {
 }
 
 //# 
-},{"separator":85,"utils":87}],76:[function(_dereq_,module,exports){
+},{"separator":86,"utils":88}],77:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   KEY: {get: function() {
@@ -15237,7 +15472,7 @@ function clearColumnItem() {
 }
 
 //# 
-},{"utils":87}],77:[function(_dereq_,module,exports){
+},{"utils":88}],78:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   KEY: {get: function() {
@@ -15278,7 +15513,7 @@ function columnLeftItem() {
 }
 
 //# 
-},{"utils":87}],78:[function(_dereq_,module,exports){
+},{"utils":88}],79:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   KEY: {get: function() {
@@ -15319,7 +15554,7 @@ function columnRightItem() {
 }
 
 //# 
-},{"utils":87}],79:[function(_dereq_,module,exports){
+},{"utils":88}],80:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   KEY: {get: function() {
@@ -15367,7 +15602,7 @@ function readOnlyItem() {
 }
 
 //# 
-},{"utils":87}],80:[function(_dereq_,module,exports){
+},{"utils":88}],81:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   KEY: {get: function() {
@@ -15393,7 +15628,7 @@ function redoItem() {
 }
 
 //# 
-},{}],81:[function(_dereq_,module,exports){
+},{}],82:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   KEY: {get: function() {
@@ -15427,7 +15662,7 @@ function removeColumnItem() {
 }
 
 //# 
-},{"utils":87}],82:[function(_dereq_,module,exports){
+},{"utils":88}],83:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   KEY: {get: function() {
@@ -15461,7 +15696,7 @@ function removeRowItem() {
 }
 
 //# 
-},{"utils":87}],83:[function(_dereq_,module,exports){
+},{"utils":88}],84:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   KEY: {get: function() {
@@ -15493,7 +15728,7 @@ function rowAboveItem() {
 }
 
 //# 
-},{"utils":87}],84:[function(_dereq_,module,exports){
+},{"utils":88}],85:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   KEY: {get: function() {
@@ -15525,7 +15760,7 @@ function rowBelowItem() {
 }
 
 //# 
-},{"utils":87}],85:[function(_dereq_,module,exports){
+},{"utils":88}],86:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   KEY: {get: function() {
@@ -15542,7 +15777,7 @@ function separatorItem() {
 }
 
 //# 
-},{}],86:[function(_dereq_,module,exports){
+},{}],87:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   KEY: {get: function() {
@@ -15568,7 +15803,7 @@ function undoItem() {
 }
 
 //# 
-},{}],87:[function(_dereq_,module,exports){
+},{}],88:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   normalizeSelection: {get: function() {
@@ -15759,147 +15994,7 @@ function filterSeparators(items) {
 }
 
 //# 
-},{"helpers/array":43,"helpers/dom/element":47,"predefinedItems/separator":85}],88:[function(_dereq_,module,exports){
-"use strict";
-Object.defineProperties(exports, {
-  ContextMenuCopyPaste: {get: function() {
-      return ContextMenuCopyPaste;
-    }},
-  __esModule: {value: true}
-});
-var $___46__46__47__46__46__47_browser__,
-    $___46__46__47__46__46__47_helpers_47_dom_47_element__,
-    $___46__46__47__46__46__47_helpers_47_array__,
-    $___46__46__47__46__46__47_eventManager__,
-    $___46__46__47__46__46__47_plugins__,
-    $___46__46__47__95_base__,
-    $__zeroclipboard__;
-var Handsontable = ($___46__46__47__46__46__47_browser__ = _dereq_("browser"), $___46__46__47__46__46__47_browser__ && $___46__46__47__46__46__47_browser__.__esModule && $___46__46__47__46__46__47_browser__ || {default: $___46__46__47__46__46__47_browser__}).default;
-var removeClass = ($___46__46__47__46__46__47_helpers_47_dom_47_element__ = _dereq_("helpers/dom/element"), $___46__46__47__46__46__47_helpers_47_dom_47_element__ && $___46__46__47__46__46__47_helpers_47_dom_47_element__.__esModule && $___46__46__47__46__46__47_helpers_47_dom_47_element__ || {default: $___46__46__47__46__46__47_helpers_47_dom_47_element__}).removeClass;
-var arrayEach = ($___46__46__47__46__46__47_helpers_47_array__ = _dereq_("helpers/array"), $___46__46__47__46__46__47_helpers_47_array__ && $___46__46__47__46__46__47_helpers_47_array__.__esModule && $___46__46__47__46__46__47_helpers_47_array__ || {default: $___46__46__47__46__46__47_helpers_47_array__}).arrayEach;
-var EventManager = ($___46__46__47__46__46__47_eventManager__ = _dereq_("eventManager"), $___46__46__47__46__46__47_eventManager__ && $___46__46__47__46__46__47_eventManager__.__esModule && $___46__46__47__46__46__47_eventManager__ || {default: $___46__46__47__46__46__47_eventManager__}).EventManager;
-var registerPlugin = ($___46__46__47__46__46__47_plugins__ = _dereq_("plugins"), $___46__46__47__46__46__47_plugins__ && $___46__46__47__46__46__47_plugins__.__esModule && $___46__46__47__46__46__47_plugins__ || {default: $___46__46__47__46__46__47_plugins__}).registerPlugin;
-var BasePlugin = ($___46__46__47__95_base__ = _dereq_("_base"), $___46__46__47__95_base__ && $___46__46__47__95_base__.__esModule && $___46__46__47__95_base__ || {default: $___46__46__47__95_base__}).default;
-var ZeroClipboard = ($__zeroclipboard__ = _dereq_("zeroclipboard"), $__zeroclipboard__ && $__zeroclipboard__.__esModule && $__zeroclipboard__ || {default: $__zeroclipboard__}).default;
-var ContextMenuCopyPaste = function ContextMenuCopyPaste(hotInstance) {
-  $traceurRuntime.superConstructor($ContextMenuCopyPaste).call(this, hotInstance);
-  this.eventManager = new EventManager(this);
-  this.swfPath = null;
-  this.outsideClickDeselectsCache = null;
-};
-var $ContextMenuCopyPaste = ContextMenuCopyPaste;
-($traceurRuntime.createClass)(ContextMenuCopyPaste, {
-  isEnabled: function() {
-    return this.hot.getSettings().contextMenuCopyPaste;
-  },
-  enablePlugin: function() {
-    var $__7 = this;
-    if (this.enabled) {
-      return;
-    }
-    if (typeof this.hot.getSettings().contextMenuCopyPaste === 'object') {
-      this.swfPath = this.hot.getSettings().contextMenuCopyPaste.swfPath;
-    }
-    if (typeof ZeroClipboard === 'undefined') {
-      console.error('To be able to use the Copy/Paste feature from the context menu, you need to manually include ZeroClipboard.js file to your website.');
-    }
-    try {
-      new ActiveXObject('ShockwaveFlash.ShockwaveFlash');
-    } catch (exception) {
-      if (typeof navigator.mimeTypes['application/x-shockwave-flash'] == 'undefined') {
-        console.error('To be able to use the Copy/Paste feature from the context menu, your browser needs to have Flash Plugin installed.');
-      }
-    }
-    if (this.swfPath) {
-      ZeroClipboard.config({swfPath: this.swfPath});
-    }
-    this.hot.addHook('afterContextMenuShow', (function() {
-      return $__7.onAfterContextMenuShow();
-    }));
-    this.hot.addHook('afterContextMenuDefaultOptions', (function(options) {
-      return $__7.onAfterContextMenuDefaultOptions(options);
-    }));
-    this.registerEvents();
-    $traceurRuntime.superGet(this, $ContextMenuCopyPaste.prototype, "enablePlugin").call(this);
-  },
-  disablePlugin: function() {
-    $traceurRuntime.superGet(this, $ContextMenuCopyPaste.prototype, "disablePlugin").call(this);
-  },
-  registerEvents: function() {
-    var $__7 = this;
-    this.eventManager.addEventListener(document, 'mouseenter', (function() {
-      return $__7.removeCurrentClass();
-    }));
-    this.eventManager.addEventListener(document, 'mouseleave', (function() {
-      return $__7.removeZeroClipboardClass();
-    }));
-  },
-  getCopyValue: function() {
-    this.hot.copyPaste.setCopyableText();
-    return this.hot.copyPaste.copyPasteInstance.elTextarea.value;
-  },
-  onAfterContextMenuDefaultOptions: function(defaultOptions) {
-    defaultOptions.items.unshift({
-      key: 'copy',
-      name: 'Copy',
-      disabled: function() {
-        return this.selection.selectedHeader.corner;
-      }
-    }, {
-      key: 'paste',
-      name: 'Paste',
-      callback: function() {
-        this.copyPaste.triggerPaste();
-      },
-      disabled: function() {
-        return this.selection.selectedHeader.corner;
-      }
-    }, Handsontable.plugins.ContextMenu.SEPARATOR);
-  },
-  onAfterContextMenuShow: function() {
-    var $__7 = this;
-    var contextMenu = this.hot.getPlugin('contextMenu');
-    var data = contextMenu.menu.hotMenu.getSourceData();
-    arrayEach(data, (function(item, index) {
-      if (item.key === 'copy') {
-        var zeroClipboardInstance = new ZeroClipboard(contextMenu.menu.hotMenu.getCell(index, 0));
-        zeroClipboardInstance.off();
-        zeroClipboardInstance.on('copy', (function(event) {
-          var clipboard = event.clipboardData;
-          clipboard.setData('text/plain', $__7.getCopyValue());
-          $__7.hot.getSettings().outsideClickDeselects = $__7.outsideClickDeselectsCache;
-        }));
-        return false;
-      }
-    }));
-  },
-  removeCurrentClass: function() {
-    var contextMenu = this.hot.getPlugin('contextMenu');
-    if (contextMenu.menu.isOpened()) {
-      var element = contextMenu.menu.hotMenu.rootElement.querySelector('td.current');
-      if (element) {
-        removeClass(element, 'current');
-      }
-    }
-    this.outsideClickDeselectsCache = this.hot.getSettings().outsideClickDeselects;
-    this.hot.getSettings().outsideClickDeselects = false;
-  },
-  removeZeroClipboardClass: function() {
-    var contextMenu = this.hot.getPlugin('contextMenu');
-    if (contextMenu.menu.isOpened()) {
-      var element = contextMenu.menu.hotMenu.rootElement.querySelector('td.zeroclipboard-is-hover');
-      if (element) {
-        removeClass(element, 'zeroclipboard-is-hover');
-      }
-    }
-    this.hot.getSettings().outsideClickDeselects = this.outsideClickDeselectsCache;
-  }
-}, {}, BasePlugin);
-;
-registerPlugin('contextMenuCopyPaste', ContextMenuCopyPaste);
-
-//# 
-},{"_base":62,"browser":24,"eventManager":42,"helpers/array":43,"helpers/dom/element":47,"plugins":61,"zeroclipboard":"zeroclipboard"}],89:[function(_dereq_,module,exports){
+},{"helpers/array":43,"helpers/dom/element":47,"predefinedItems/separator":86}],89:[function(_dereq_,module,exports){
 "use strict";
 Object.defineProperties(exports, {
   CopyPastePlugin: {get: function() {
@@ -33416,5 +33511,5 @@ if (typeof exports !== "undefined") {
 })(function() {
   return this || window;
 }());
-},{}]},{},[24,63,65,64,66,109,110,111,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,98,99,100,101,102,104,105,106,107,108,112,113,114,115,130,131,132,133,118,119,120,121,122,123,32,36,33,34,41,35,37,38,39,40])(24)
+},{}]},{},[24,63,65,64,66,109,110,111,67,68,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,69,89,90,91,92,93,94,95,96,98,99,100,101,102,104,105,106,107,108,112,113,114,115,130,131,132,133,118,119,120,121,122,123,32,36,33,34,41,35,37,38,39,40])(24)
 });
